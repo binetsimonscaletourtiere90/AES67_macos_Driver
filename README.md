@@ -4,11 +4,13 @@
 > This driver is currently in active development and should be considered **beta quality**. While the core functionality works, expect bugs, missing features, and breaking changes. **Not recommended for production use.**
 > Use at your own risk. Contributions and bug reports are welcome!
 
-A professional-grade virtual audio driver for macOS that brings AES67/RAVENNA/Dante network audio support to your Mac. This driver creates a 128-channel virtual audio device that integrates seamlessly with all Core Audio applications.
+An experimental virtual audio driver for macOS that aims to bring AES67/RAVENNA/Dante network audio support to your Mac. This driver creates a 128-channel virtual audio device that works with Core Audio applications.
 
 ## Overview
 
-This driver enables macOS applications to send and receive audio over IP networks using the AES67 standard. Whether you're working with broadcast equipment, live sound systems, or professional recording setups, this driver provides a reliable bridge between your Mac and AES67-compatible devices.
+AES67 network audio is widely used in broadcast, live sound, and recording facilities, but macOS lacks a free, open-source driver solution. Commercial options exist but are expensive and closed-source. This project aims to fill that gap by providing a free and open-source AES67 driver that anyone can use, modify, and contribute to.
+
+This driver is being developed to enable macOS applications to send and receive audio over IP networks using the AES67 standard. The goal is to provide a no-cost alternative that gives users full control over their audio routing without vendor lock-in.
 
 ### Current Status (Build #8)
 
@@ -34,28 +36,29 @@ This driver enables macOS applications to send and receive audio over IP network
 - Limited error handling
 - Debug logging enabled (creates `/tmp/aes67driver_debug.log`)
 
-### Key Features
+### Planned Features
 
-- **128 Channels In/Out** - Full 128-channel bidirectional audio support
-- **Multiple Sample Rates** - 44.1kHz to 384kHz support for professional workflows
-- **Network Audio** - Built-in AES67, RAVENNA, and Dante compatibility
-- **Low Latency** - Optimized ring buffers with 2ms default latency
-- **Universal Integration** - Works with any Core Audio application (Logic Pro, Pro Tools, Ableton Live, QLab, etc.)
-- **Native Apple Silicon** - Optimized for M1/M2/M3 Macs
-- **SDP Import/Export** - Easy stream configuration via SDP files
+- **128 Channels In/Out** - 128-channel bidirectional audio device
+- **Multiple Sample Rates** - 44.1kHz to 384kHz support
+- **Network Audio** - AES67, RAVENNA, and Dante compatibility (in development)
+- **Low Latency** - Ring buffers with 2ms default latency
+- **Core Audio Integration** - Works with Logic Pro, Pro Tools, Ableton Live, QLab, etc.
+- **Apple Silicon** - Built for M1/M2/M3 Macs
+- **SDP Import/Export** - Stream configuration via SDP files
+- **Free and Open Source** - MIT licensed, no vendor lock-in
 
 ## What's Included
 
 ### Audio Driver
-The core AudioServerPlugIn driver that appears as "AES67 Device" in your system. Built using modern C++17 with the libASPL framework for rock-solid stability.
+The core AudioServerPlugIn driver that appears as "AES67 Device" in your system. Built using C++17 with the libASPL framework.
 
 ### Manager Application
-A native SwiftUI app for managing your AES67 streams:
-- Add/remove network audio streams
-- Configure channel mappings
-- Import/export SDP session files
-- Monitor stream status
-- View statistics
+A SwiftUI app (in development) for managing AES67 streams:
+- Add/remove network audio streams (UI only - not yet functional)
+- Configure channel mappings (planned)
+- Import/export SDP session files (parser implemented)
+- Monitor stream status (planned)
+- View statistics (planned)
 
 ## Architecture
 
@@ -259,8 +262,8 @@ Component licenses:
 
 For issues, questions, or feature requests, please open an issue on GitHub.
 
+This is an experimental project under active development. Contributions are welcome!
+
 ---
 
-**Built with ❤️ for the professional audio community**
-
-*Version 1.0.0 - Build #8*
+*Version 1.0.0 - Build #8 (Beta)*
