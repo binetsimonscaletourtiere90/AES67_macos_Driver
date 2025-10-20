@@ -1,11 +1,12 @@
 //
 // AES67Device.cpp
-// AES67 macOS Driver - Build #7
+// AES67 macOS Driver - Build #9
 // Core Audio device implementation
 //
 
 #include "AES67Device.h"
 #include "AES67IOHandler.h"
+#include "SDPParser.h"
 #include "DebugLog.h"
 #include <CoreAudio/AudioServerPlugIn.h>
 #include <utility>
@@ -63,6 +64,42 @@ void AES67Device::Initialize() {
     // Initialize IO handler
     AES67_LOG("AES67Device: Calling InitializeIOHandler()");
     InitializeIOHandler();
+
+    // Initialize Stream Manager (manages all AES67 network streams)
+    AES67_LOG("AES67Device: Creating StreamManager");
+    streamManager_ = std::make_unique<StreamManager>(inputBuffers_, outputBuffers_);
+    AES67_LOG("AES67Device: StreamManager created successfully");
+
+    // Set device sample rate in StreamManager
+    streamManager_->setDeviceSampleRate(currentSampleRate_.load());
+    AES67_LOGF("AES67Device: StreamManager sample rate set to %.0f Hz", currentSampleRate_.load());
+
+    // Add test stream for initial testing
+    // TODO: Remove this and implement proper stream configuration via Manager App
+    AES67_LOG("AES67Device: Adding test stream (239.1.1.1:5004, 8ch @ 48kHz)");
+    SDPSession testSDP;
+    testSDP.sessionName = "Test AES67 Stream";
+    testSDP.sessionInfo = "Hard-coded test stream for driver development";
+    testSDP.connectionAddress = "239.1.1.1";  // AES67 multicast range
+    testSDP.port = 5004;
+    testSDP.numChannels = 8;
+    testSDP.sampleRate = 48000.0;
+    testSDP.encoding = "L24";
+    testSDP.payloadType = 97;
+    testSDP.ptime = 1.0;  // 1ms packets (48 samples @ 48kHz)
+    testSDP.framecount = 48;
+    testSDP.ptpDomain = 0;
+    testSDP.sessionID = 123456;
+    testSDP.sessionVersion = 1;
+    testSDP.sourceAddress = "0.0.0.0";
+
+    StreamID testStreamID = streamManager_->addStream(testSDP);
+    if (!testStreamID.isNull()) {
+        AES67_LOG("AES67Device: Test stream added successfully");
+        AES67_LOGF("AES67Device: Test stream ID: %s", testStreamID.toString().c_str());
+    } else {
+        AES67_LOG("AES67Device: WARNING - Failed to add test stream");
+    }
 
     AES67_LOG("AES67Device::Initialize() complete");
 }

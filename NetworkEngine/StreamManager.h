@@ -31,7 +31,7 @@ public:
     using DeviceChannelBuffers = std::array<SPSCRingBuffer<float>, 128>;
     using StreamCallback = std::function<void(const StreamInfo&)>;
 
-    StreamManager(DeviceChannelBuffers& deviceChannels);
+    StreamManager(DeviceChannelBuffers& inputChannels, DeviceChannelBuffers& outputChannels);
     ~StreamManager();
 
     // Prevent copy/move
@@ -177,7 +177,8 @@ private:
     void notifyStreamStatusChanged(const StreamInfo& info);
 
     // Data members
-    DeviceChannelBuffers& deviceChannels_;
+    DeviceChannelBuffers& inputChannels_;   // RTP receivers write here (Network → Core Audio)
+    DeviceChannelBuffers& outputChannels_;  // RTP transmitters read here (Core Audio → Network)
     StreamChannelMapper mapper_;
     std::map<StreamID, ManagedStream> streams_;
     mutable std::mutex streamsMutex_;

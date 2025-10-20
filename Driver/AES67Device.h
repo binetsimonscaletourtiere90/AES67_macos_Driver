@@ -9,6 +9,7 @@
 
 #include "../Shared/Types.h"
 #include "../Shared/RingBuffer.hpp"
+#include "../NetworkEngine/StreamManager.h"
 #include <aspl/Device.hpp>
 #include <aspl/Stream.hpp>
 #include <aspl/Context.hpp>
@@ -19,7 +20,6 @@
 namespace AES67 {
 
 class AES67IOHandler;
-class StreamManager;
 
 //
 // AES67 Audio Device
@@ -99,6 +99,13 @@ public:
     DeviceChannelBuffers& GetOutputBuffers() { return outputBuffers_; }
 
     //
+    // Stream Manager Access
+    //
+
+    StreamManager* GetStreamManager() { return streamManager_.get(); }
+    const StreamManager* GetStreamManager() const { return streamManager_.get(); }
+
+    //
     // Control
     //
 
@@ -140,6 +147,9 @@ private:
 
     // IO Handler
     std::shared_ptr<AES67IOHandler> ioHandler_;
+
+    // Stream Manager (manages all AES67 network streams)
+    std::unique_ptr<StreamManager> streamManager_;
 
     // Current configuration
     std::atomic<Float64> currentSampleRate_{48000.0};

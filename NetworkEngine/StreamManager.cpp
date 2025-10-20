@@ -1,6 +1,6 @@
 //
 // StreamManager.cpp
-// AES67 macOS Driver - Build #7
+// AES67 macOS Driver - Build #9
 // Unified management of all AES67 streams with validation
 //
 
@@ -12,8 +12,9 @@
 
 namespace AES67 {
 
-StreamManager::StreamManager(DeviceChannelBuffers& deviceChannels)
-    : deviceChannels_(deviceChannels)
+StreamManager::StreamManager(DeviceChannelBuffers& inputChannels, DeviceChannelBuffers& outputChannels)
+    : inputChannels_(inputChannels)
+    , outputChannels_(outputChannels)
 {
 }
 
@@ -524,14 +525,16 @@ std::unique_ptr<RTPReceiver> StreamManager::createReceiver(
     const SDPSession& sdp,
     const ChannelMapping& mapping
 ) {
-    return std::make_unique<RTPReceiver>(sdp, mapping, deviceChannels_);
+    // Receivers write decoded network audio to INPUT buffers (Network → Core Audio)
+    return std::make_unique<RTPReceiver>(sdp, mapping, inputChannels_);
 }
 
 std::unique_ptr<RTPTransmitter> StreamManager::createTransmitter(
     const SDPSession& sdp,
     const ChannelMapping& mapping
 ) {
-    return std::make_unique<RTPTransmitter>(sdp, mapping, deviceChannels_);
+    // Transmitters read audio from OUTPUT buffers (Core Audio → Network)
+    return std::make_unique<RTPTransmitter>(sdp, mapping, outputChannels_);
 }
 
 //
