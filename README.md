@@ -1,10 +1,38 @@
 # AES67 macOS Audio Driver
 
+> ⚠️ **BETA SOFTWARE - WORK IN PROGRESS** ⚠️
+> This driver is currently in active development and should be considered **beta quality**. While the core functionality works, expect bugs, missing features, and breaking changes. **Not recommended for production use.**
+> Use at your own risk. Contributions and bug reports are welcome!
+
 A professional-grade virtual audio driver for macOS that brings AES67/RAVENNA/Dante network audio support to your Mac. This driver creates a 128-channel virtual audio device that integrates seamlessly with all Core Audio applications.
 
 ## Overview
 
 This driver enables macOS applications to send and receive audio over IP networks using the AES67 standard. Whether you're working with broadcast equipment, live sound systems, or professional recording setups, this driver provides a reliable bridge between your Mac and AES67-compatible devices.
+
+### Current Status (Build #8)
+
+**✅ Working:**
+- Core Audio driver loads and appears as "AES67 Device"
+- 128-channel input/output device registration
+- Ring buffer infrastructure for real-time audio
+- Basic audio I/O processing
+- SwiftUI Manager application
+- SDP file parsing
+
+**⚠️ In Progress / Not Yet Implemented:**
+- Network audio transmission/reception (RTP engine compiled but not fully integrated)
+- Actual AES67 stream connectivity
+- PTP synchronization
+- Stream discovery (SAP/RTSP)
+- Channel mapping UI functionality
+- Comprehensive testing
+
+**🐛 Known Issues:**
+- Network streams not yet functional
+- No audio will flow until RTP integration is complete
+- Limited error handling
+- Debug logging enabled (creates `/tmp/aes67driver_debug.log`)
 
 ### Key Features
 
