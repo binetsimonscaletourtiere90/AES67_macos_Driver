@@ -1,0 +1,42 @@
+#!/bin/bash
+# Build script for AES67 Manager App
+
+set -e
+
+cd "$(dirname "$0")"
+
+echo "Building AES67 Manager..."
+
+# Compile Swift files
+swiftc -o AES67Manager \
+  -target arm64-apple-macos13.0 \
+  -sdk "$(xcrun --show-sdk-path --sdk macosx)" \
+  -framework SwiftUI \
+  -framework Foundation \
+  -framework AppKit \
+  -framework CoreAudio \
+  AES67ManagerApp.swift \
+  Views/ContentView.swift \
+  Views/StreamListView.swift \
+  Views/StreamDetailView.swift \
+  Views/AddStreamView.swift \
+  Views/SettingsView.swift \
+  Models/StreamInfo.swift \
+  Models/DriverManager.swift
+
+# Create app bundle structure
+echo "Creating app bundle..."
+mkdir -p AES67Manager.app/Contents/MacOS
+mkdir -p AES67Manager.app/Contents/Resources
+
+# Move executable
+mv AES67Manager AES67Manager.app/Contents/MacOS/
+
+# Copy Info.plist
+cp Resources/Info.plist AES67Manager.app/Contents/
+
+# Sign the app
+echo "Signing app..."
+codesign --force --deep --sign - --options runtime AES67Manager.app
+
+echo "Build complete: AES67Manager.app"

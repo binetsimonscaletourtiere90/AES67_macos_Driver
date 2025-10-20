@@ -1,0 +1,112 @@
+//
+// RTPTransmitter.h
+// AES67 macOS Driver - Build #1
+// RTP packet transmitter with L16/L24 encoding and channel mapping
+//
+
+#pragma once
+
+#include "../../Shared/Types.h"
+#include "../../Shared/RingBuffer.hpp"
+#include "../../Driver/SDPParser.h"
+#include "../StreamChannelMapper.h"
+#include <ortp/ortp.h>
+#include <thread>
+#include <atomic>
+#include <memory>
+
+namespace AES67 {
+
+//
+// RTP Transmitter
+//
+// Reads audio from device channels and transmits as RTP packets
+// with L16/L24 encoding according to SDP configuration
+//
+class RTPTransmitter {
+public:
+    using DeviceChannelBuffers = std::array<SPSCRingBuffer<float>, 128>;
+
+    //
+    // Constructor
+    //
+    RTPTransmitter(
+        const SDPSession& sdp,
+        const ChannelMapping& mapping,
+        DeviceChannelBuffers& deviceChannels
+    );
+
+    ~RTPTransmitter();
+
+    // Prevent copy/move
+    RTPTransmitter(const RTPTransmitter&) = delete;
+    RTPTransmitter& operator=(const RTPTransmitter&) = delete;
+
+    //
+    // Control
+    //
+
+    bool start();
+    void stop();
+    bool isRunning() const { return running_.load(); }
+
+    //
+    // Status
+    //
+
+    Statistics getStatistics() const;
+    void resetStatistics();
+
+    //
+    // Configuration
+    //
+
+    bool updateMapping(const ChannelMapping& newMapping);
+    const SDPSession& getSDPSession() const { return sdp_; }
+    const ChannelMapping& getMapping() const { return mapping_; }
+
+private:
+    // Transmit thread function
+    void transmitLoop();
+
+    // Read audio from device channels and interleave
+    bool readDeviceChannels(float* interleavedAudio, size_t frameCount);
+
+    // Audio encoding
+    void encodeL16(const float* audio, size_t frameCount, uint8_t* payload);
+    void encodeL24(const float* audio, size_t frameCount, uint8_t* payload);
+
+    // Send RTP packet
+    void sendPacket(const uint8_t* payload, size_t payloadSize, uint32_t timestamp);
+
+    // Configuration
+    SDPSession sdp_;
+    ChannelMapping mapping_;
+    DeviceChannelBuffers& deviceChannels_;
+
+    // oRTP session
+    RtpSession* rtpSession_{nullptr};
+
+    // Threading
+    std::thread transmitThread_;
+    std::atomic<bool> running_{false};
+
+    // Statistics
+    Statistics stats_;
+    mutable std::mutex statsMutex_;
+
+    // RTP state
+    uint16_t sequenceNumber_{0};
+    uint32_t timestamp_{0};
+    uint32_t ssrc_{0};
+
+    // Timing
+    std::chrono::steady_clock::time_point startTime_;
+    std::chrono::microseconds packetInterval_;
+
+    // Audio buffer (reused to avoid allocations)
+    std::vector<float> audioBuffer_;
+    std::vector<uint8_t> payloadBuffer_;
+};
+
+} // namespace AES67

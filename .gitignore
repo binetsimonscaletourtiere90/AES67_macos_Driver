@@ -1,0 +1,67 @@
+# Build directories
+build/
+build-pkg/
+combined-pkg/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Compiled binaries
+*.driver
+*.app
+*.pkg
+*.dylib
+*.a
+*.o
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+
+# Xcode
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcuserstate
+project.xcworkspace/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Debug logs
+*.log
+/tmp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sensitive files (CLAUDE.md contains credentials)
+CLAUDE.md
+.claude/
+
+# Package files
+*.deb
+*.rpm
+*.tar.gz
+*.zip
+
+# Test outputs
+Tests/output/
+Tests/*.log
