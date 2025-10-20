@@ -10,7 +10,7 @@
 #include "../../Shared/RingBuffer.hpp"
 #include "../../Driver/SDPParser.h"
 #include "../StreamChannelMapper.h"
-#include <ortp/ortp.h>
+#include "SimpleRTP.h"
 #include <thread>
 #include <atomic>
 #include <memory>
@@ -94,8 +94,8 @@ private:
     void receiveLoop();
 
     // Packet processing
-    void processPacket(mblk_t* packet);
-    bool validatePacket(mblk_t* packet);
+    void processPacket(const RTP::RTPPacket& packet);
+    bool validatePacket(const RTP::RTPPacket& packet);
 
     // Audio decoding
     void decodeL16(const uint8_t* payload, size_t payloadSize);
@@ -112,8 +112,8 @@ private:
     ChannelMapping mapping_;
     DeviceChannelBuffers& deviceChannels_;
 
-    // oRTP session
-    RtpSession* rtpSession_{nullptr};
+    // RTP socket
+    RTP::RTPSocket rtpSocket_;
 
     // Threading
     std::thread receiveThread_;
@@ -131,6 +131,9 @@ private:
 
     // Audio buffer (reused to avoid allocations)
     std::vector<float> audioBuffer_;
+
+    // Receive buffer for network packets (max MTU 1500 bytes)
+    uint8_t receiveBuffer_[2048];
 };
 
 } // namespace AES67

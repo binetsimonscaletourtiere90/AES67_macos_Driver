@@ -10,7 +10,7 @@
 #include "../../Shared/RingBuffer.hpp"
 #include "../../Driver/SDPParser.h"
 #include "../StreamChannelMapper.h"
-#include <ortp/ortp.h>
+#include "SimpleRTP.h"
 #include <thread>
 #include <atomic>
 #include <memory>
@@ -84,8 +84,8 @@ private:
     ChannelMapping mapping_;
     DeviceChannelBuffers& deviceChannels_;
 
-    // oRTP session
-    RtpSession* rtpSession_{nullptr};
+    // RTP socket
+    RTP::RTPSocket rtpSocket_;
 
     // Threading
     std::thread transmitThread_;

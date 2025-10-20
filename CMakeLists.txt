@@ -61,10 +61,6 @@ endif()
 # Dependencies
 # ============================================================================
 
-# Find oRTP
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ORTP REQUIRED ortp)
-
 # Find libASPL (header-only library)
 find_path(ASPL_INCLUDE_DIR aspl/Plugin.hpp
     PATHS
@@ -114,6 +110,7 @@ set(DRIVER_SOURCES
 set(NETWORK_SOURCES
     NetworkEngine/StreamChannelMapper.cpp
     NetworkEngine/StreamManager.cpp
+    NetworkEngine/RTP/SimpleRTP.cpp
     NetworkEngine/RTP/RTPReceiver.cpp
     NetworkEngine/RTP/RTPTransmitter.cpp
     NetworkEngine/PTP/PTPClock.cpp
@@ -144,14 +141,10 @@ if(APPLE)
     target_include_directories(AES67Driver PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${ASPL_INCLUDE_DIR}
-        ${ORTP_INCLUDE_DIRS}
-        /opt/homebrew/Cellar/ortp/5.4.50/libexec/include
     )
 
     target_link_libraries(AES67Driver PRIVATE
         ${ASPL_LIBRARY}
-        "-F/opt/homebrew/Cellar/ortp/5.4.50/Frameworks"
-        "-framework ortp"
         "-framework CoreAudio"
         "-framework CoreFoundation"
         "-framework AudioToolbox"
@@ -284,7 +277,7 @@ if(APPLE)
     message(STATUS "  macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
     message(STATUS "  Architectures: ${CMAKE_OSX_ARCHITECTURES}")
 endif()
-message(STATUS "  oRTP: ${ORTP_VERSION}")
+message(STATUS "  RTP: SimpleRTP (minimal implementation)")
 message(STATUS "  libASPL: ${ASPL_INCLUDE_DIR}")
 if(PTPD_LIBRARY)
     message(STATUS "  ptpd: ${PTPD_LIBRARY}")

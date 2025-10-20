@@ -1,10 +1,11 @@
 //
 // RTPReceiver.cpp
-// AES67 macOS Driver - Build #6
+// AES67 macOS Driver - Build #9
 // RTP packet receiver with L16/L24 decoding and channel mapping integration
 //
 
 #include "RTPReceiver.h"
+#include "SimpleRTP.h"
 #include <cstring>
 #include <stdexcept>
 #include <chrono>
@@ -31,15 +32,10 @@ RTPReceiver::RTPReceiver(
 
 RTPReceiver::~RTPReceiver() {
     stop();
-
-    if (rtpSession_) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-    }
 }
 
 bool RTPReceiver::start() {
-    if (running_ || rtpSession_) {
+    if (running_ || rtpSocket_.isOpen()) {
         return false; // Already running
     }
 
@@ -52,52 +48,9 @@ bool RTPReceiver::start() {
         return false;
     }
 
-    // Create RTP session
-    rtpSession_ = rtp_session_new(RTP_SESSION_RECVONLY);
-    if (!rtpSession_) {
+    // Open RTP receiver socket
+    if (!rtpSocket_.openReceiver(sdp_.connectionAddress.c_str(), sdp_.port)) {
         return false;
-    }
-
-    // Configure session for AES67
-    rtp_session_set_scheduling_mode(rtpSession_, 0); // Polling mode
-    rtp_session_set_blocking_mode(rtpSession_, 0);   // Non-blocking
-
-    // Set local and remote addresses
-    // Local: bind to port on any interface
-    // Remote: multicast address for receiving
-    int result = rtp_session_set_local_addr(rtpSession_, "0.0.0.0", sdp_.port, -1);
-    if (result != 0) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-        return false;
-    }
-
-    result = rtp_session_set_remote_addr(rtpSession_,
-                                         sdp_.connectionAddress.c_str(),
-                                         sdp_.port);
-    if (result != 0) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-        return false;
-    }
-
-    // Set payload type
-    RtpProfile* profile = rtp_session_get_profile(rtpSession_);
-    if (profile) {
-        // AES67 uses payload type 96-127 for dynamic types (L16/L24)
-        // Map to generic audio payload
-        rtp_profile_set_payload(profile, sdp_.payloadType,
-                               &payload_type_lpc);
-    }
-
-    // Set receive buffer size (4MB for low latency network audio)
-    rtp_session_set_recv_buf_size(rtpSession_, 4 * 1024 * 1024);
-
-    // Join multicast group if address is multicast
-    if (sdp_.connectionAddress.find("239.") == 0 ||
-        sdp_.connectionAddress.find("224.") == 0) {
-        rtp_session_set_multicast_ttl(rtpSession_, 32);
-        // Note: oRTP handles multicast join automatically when setting remote addr
     }
 
     // Start receive thread
@@ -118,11 +71,7 @@ void RTPReceiver::stop() {
         receiveThread_.join();
     }
 
-    if (rtpSession_) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-    }
-
+    rtpSocket_.close();
     connected_ = false;
 }
 
@@ -191,13 +140,14 @@ void RTPReceiver::receiveLoop() {
     // Fast enough for 48kHz @ 48 samples/packet (1ms intervals)
     constexpr int kPollingIntervalUs = 500;
 
+    RTP::RTPPacket packet;
+
     while (running_) {
         // Try to receive packet
-        mblk_t* packet = rtp_session_recvm_with_ts(rtpSession_, 0);
+        ssize_t bytesReceived = rtpSocket_.receive(packet, receiveBuffer_, sizeof(receiveBuffer_));
 
-        if (packet) {
+        if (bytesReceived > 0) {
             processPacket(packet);
-            freemsg(packet);
         } else {
             // No packet available, wait briefly
             std::this_thread::sleep_for(std::chrono::microseconds(kPollingIntervalUs));
@@ -205,30 +155,20 @@ void RTPReceiver::receiveLoop() {
     }
 }
 
-void RTPReceiver::processPacket(mblk_t* packet) {
-    if (!packet || !validatePacket(packet)) {
+void RTPReceiver::processPacket(const RTP::RTPPacket& packet) {
+    if (!validatePacket(packet)) {
         std::lock_guard<std::mutex> lock(statsMutex_);
         stats_.malformedPackets++;
         return;
     }
 
-    // Get RTP header info from oRTP
-    // Note: oRTP has already parsed the RTP header for us
-    uint16_t sequenceNumber = rtp_get_seqnumber(packet);
-    uint32_t timestamp = rtp_get_timestamp(packet);
+    // Get RTP header info
+    uint16_t sequenceNumber = packet.header.sequenceNumber;
+    uint32_t timestamp = packet.header.timestamp;
 
-    // Get payload - skip RTP header to access audio data
-    // oRTP's msgdsize() gives total packet size
-    size_t totalSize = msgdsize(packet);
-    if (totalSize <= RTP_FIXED_HEADER_SIZE) {
-        std::lock_guard<std::mutex> lock(statsMutex_);
-        stats_.malformedPackets++;
-        return;
-    }
-
-    // Direct access to payload data after RTP header
-    uint8_t* payload = packet->b_rptr + RTP_FIXED_HEADER_SIZE;
-    size_t payloadSize = totalSize - RTP_FIXED_HEADER_SIZE;
+    // Get payload
+    uint8_t* payload = packet.payload;
+    size_t payloadSize = packet.payloadSize;
 
     if (!payload || payloadSize == 0) {
         std::lock_guard<std::mutex> lock(statsMutex_);
@@ -253,21 +193,19 @@ void RTPReceiver::processPacket(mblk_t* packet) {
     }
 }
 
-bool RTPReceiver::validatePacket(mblk_t* packet) {
-    if (!packet) {
+bool RTPReceiver::validatePacket(const RTP::RTPPacket& packet) {
+    // Check RTP version (should be 2)
+    if (packet.header.version != 2) {
         return false;
     }
 
-    // Check minimum size (RTP header = 12 bytes minimum)
-    size_t packetSize = msgdsize(packet);
-    if (packetSize < 12) {
+    // Check payload type matches SDP
+    if (packet.header.payloadType != sdp_.payloadType) {
         return false;
     }
 
-    // oRTP validates version and other header fields for us
-    // We just need to check payload type
-    int payloadType = rtp_get_payload_type(packet);
-    if (payloadType != sdp_.payloadType) {
+    // Check payload size is reasonable
+    if (packet.payloadSize == 0 || packet.payloadSize > 1500) {
         return false;
     }
 

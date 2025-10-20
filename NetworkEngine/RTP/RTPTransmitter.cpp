@@ -1,10 +1,11 @@
 //
 // RTPTransmitter.cpp
-// AES67 macOS Driver - Build #6
+// AES67 macOS Driver - Build #9
 // RTP packet transmitter with L16/L24 encoding and channel mapping
 //
 
 #include "RTPTransmitter.h"
+#include "SimpleRTP.h"
 #include <cstring>
 #include <random>
 #include <chrono>
@@ -47,15 +48,10 @@ RTPTransmitter::RTPTransmitter(
 
 RTPTransmitter::~RTPTransmitter() {
     stop();
-
-    if (rtpSession_) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-    }
 }
 
 bool RTPTransmitter::start() {
-    if (running_ || rtpSession_) {
+    if (running_ || rtpSocket_.isOpen()) {
         return false; // Already running
     }
 
@@ -68,44 +64,12 @@ bool RTPTransmitter::start() {
         return false;
     }
 
-    // Create RTP session
-    rtpSession_ = rtp_session_new(RTP_SESSION_SENDONLY);
-    if (!rtpSession_) {
+    // Open RTP transmitter socket
+    if (!rtpSocket_.openTransmitter(sdp_.connectionAddress.c_str(), sdp_.port)) {
         return false;
     }
 
-    // Configure session for AES67
-    rtp_session_set_scheduling_mode(rtpSession_, 0); // Polling mode
-    rtp_session_set_blocking_mode(rtpSession_, 0);   // Non-blocking
-
-    // Set remote address (multicast destination)
-    int result = rtp_session_set_remote_addr(rtpSession_,
-                                             sdp_.connectionAddress.c_str(),
-                                             sdp_.port);
-    if (result != 0) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-        return false;
-    }
-
-    // Set payload type
-    RtpProfile* profile = rtp_session_get_profile(rtpSession_);
-    if (profile) {
-        // AES67 uses payload type 96-127 for dynamic types (L16/L24)
-        rtp_profile_set_payload(profile, sdp_.payloadType,
-                               &payload_type_lpc);
-    }
-
-    // Set SSRC
-    rtp_session_set_ssrc(rtpSession_, ssrc_);
-
-    // Set multicast TTL if address is multicast
-    if (sdp_.connectionAddress.find("239.") == 0 ||
-        sdp_.connectionAddress.find("224.") == 0) {
-        rtp_session_set_multicast_ttl(rtpSession_, 32);
-    }
-
-    // Initialize timestamp to 0 (will increment by samples per packet)
+    // Initialize timestamp and sequence number
     timestamp_ = 0;
     sequenceNumber_ = 0;
 
@@ -130,10 +94,7 @@ void RTPTransmitter::stop() {
         transmitThread_.join();
     }
 
-    if (rtpSession_) {
-        rtp_session_destroy(rtpSession_);
-        rtpSession_ = nullptr;
-    }
+    rtpSocket_.close();
 }
 
 Statistics RTPTransmitter::getStatistics() const {
@@ -287,31 +248,32 @@ void RTPTransmitter::encodeL24(const float* audio, size_t frameCount, uint8_t* p
 }
 
 void RTPTransmitter::sendPacket(const uint8_t* payload, size_t payloadSize, uint32_t timestamp) {
-    if (!rtpSession_ || !payload || payloadSize == 0) {
+    if (!rtpSocket_.isOpen() || !payload || payloadSize == 0) {
         return;
     }
 
-    // Create oRTP message block for payload
-    mblk_t* packet = rtp_session_create_packet(rtpSession_,
-                                               RTP_FIXED_HEADER_SIZE,
-                                               payload,
-                                               payloadSize);
-    if (!packet) {
-        return;
-    }
+    // Build RTP packet
+    RTP::RTPPacket packet;
+    packet.header.version = 2;
+    packet.header.padding = 0;
+    packet.header.extension = 0;
+    packet.header.cc = 0;
+    packet.header.marker = 0;
+    packet.header.payloadType = sdp_.payloadType;
+    packet.header.sequenceNumber = sequenceNumber_++;
+    packet.header.timestamp = timestamp;
+    packet.header.ssrc = ssrc_;
+    packet.payload = const_cast<uint8_t*>(payload);
+    packet.payloadSize = payloadSize;
 
-    // Send packet with timestamp
-    // oRTP handles sequence number, SSRC, and RTP header automatically
-    int result = rtp_session_sendm_with_ts(rtpSession_, packet, timestamp);
+    // Send packet
+    ssize_t bytesSent = rtpSocket_.send(packet);
 
-    if (result < 0) {
+    if (bytesSent < 0) {
         // Send failed
-        freemsg(packet);
         std::lock_guard<std::mutex> lock(statsMutex_);
         stats_.malformedPackets++; // Reuse this field for send errors
     }
-
-    // Note: packet is freed by oRTP after sending
 }
 
 } // namespace AES67

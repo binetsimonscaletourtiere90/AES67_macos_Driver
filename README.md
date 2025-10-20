@@ -1,8 +1,8 @@
 # AES67 macOS Audio Driver
 
-> ⚠️ **BETA SOFTWARE - WORK IN PROGRESS** ⚠️
-> This driver is currently in active development and should be considered **beta quality**. While the core functionality works, expect bugs, missing features, and breaking changes. **Not recommended for production use.**
-> Use at your own risk. Contributions and bug reports are welcome!
+> ⚠️ **ALPHA SOFTWARE - NOT FUNCTIONAL YET** ⚠️
+> This driver is currently in active development and is **not yet functional**. The Core Audio driver loads successfully but **network audio streaming is not yet implemented**. This is a work in progress - do not expect it to work yet.
+> **Not recommended for any use - development only.** Contributions and testing are welcome!
 
 An experimental virtual audio driver for macOS that aims to bring AES67/RAVENNA/Dante network audio support to your Mac. This driver creates a 128-channel virtual audio device that works with Core Audio applications.
 
@@ -12,29 +12,35 @@ AES67 network audio is widely used in broadcast, live sound, and recording facil
 
 This driver is being developed to enable macOS applications to send and receive audio over IP networks using the AES67 standard. The goal is to provide a no-cost alternative that gives users full control over their audio routing without vendor lock-in.
 
-### Current Status (Build #8)
+### Current Status (Build #9)
 
-**✅ Working:**
+**✅ Infrastructure Complete:**
 - Core Audio driver loads and appears as "AES67 Device"
 - 128-channel input/output device registration
-- Ring buffer infrastructure for real-time audio
-- Basic audio I/O processing
-- SwiftUI Manager application
+- Ring buffer infrastructure (lock-free SPSC buffers)
+- RTP packet handling (SimpleRTP implementation)
 - SDP file parsing
+- Basic audio I/O framework
 
-**⚠️ In Progress / Not Yet Implemented:**
-- Network audio transmission/reception (RTP engine compiled but not fully integrated)
-- Actual AES67 stream connectivity
+**❌ Not Yet Functional:**
+- **Network audio streaming** - RTP engine exists but not connected to audio IO path
+- **No audio will flow** - Driver appears but doesn't transmit/receive network audio yet
 - PTP synchronization
 - Stream discovery (SAP/RTSP)
-- Channel mapping UI functionality
+- Stream management and configuration
+- Channel mapping UI
+
+**🔧 Next Steps:**
+- Connect RTP receivers/transmitters to audio IO handler
+- Implement stream manager integration
+- Add PTP clock support
+- Build manager application UI
 - Comprehensive testing
 
-**🐛 Known Issues:**
-- Network streams not yet functional
-- No audio will flow until RTP integration is complete
-- Limited error handling
+**🐛 Current Limitations:**
+- Driver is visible but non-functional for actual audio streaming
 - Debug logging enabled (creates `/tmp/aes67driver_debug.log`)
+- No error reporting to user
 
 ### Planned Features
 
@@ -70,8 +76,9 @@ AES67Driver/
 │   └── SDPParser            # SDP file import/export
 ├── NetworkEngine/           # Network audio processing
 │   ├── RTP/
-│   │   ├── RTPReceiver      # oRTP receiver with L16/L24 decoding
-│   │   └── RTPTransmitter   # oRTP transmitter
+│   │   ├── SimpleRTP        # Minimal RTP implementation (RFC 3550)
+│   │   ├── RTPReceiver      # Network receiver with L16/L24 decoding
+│   │   └── RTPTransmitter   # Network transmitter with L16/L24 encoding
 │   ├── PTP/
 │   │   ├── PTPClock         # Per-domain PTP clock
 │   │   └── PTPClockManager  # Multi-domain coordinator
@@ -143,7 +150,7 @@ AES67Driver/
 ### Core Components
 
 - **AudioServerPlugIn Driver** - macOS HAL plugin using libASPL
-- **RTP Engine** - Network audio packet handling via oRTP library
+- **SimpleRTP Engine** - Minimal RTP implementation (RFC 3550) for network audio packets
 - **Channel Mapper** - Flexible routing between streams and device channels
 - **Ring Buffers** - Lock-free SPSC buffers for real-time audio
 - **PTP Sync** - Precision time synchronization (IEEE 1588)
@@ -169,7 +176,7 @@ AES67Driver/
 
 ```bash
 # Install dependencies via Homebrew
-brew install cmake ortp
+brew install cmake
 
 # Install libASPL
 brew tap gavv/gavv
@@ -250,13 +257,13 @@ This project is released under the MIT License. See LICENSE file for details.
 
 Component licenses:
 - **libASPL**: MIT License
-- **oRTP**: LGPL 2.1
+- **SimpleRTP**: MIT License (minimal RTP implementation, original work for this project)
 
 ## Acknowledgments
 
 - **libASPL** - Modern C++ AudioServerPlugIn framework by [gavv](https://github.com/gavv/libASPL)
-- **oRTP** - RTP library by Belledonne Communications
 - **AES67 Standard** - Audio Engineering Society
+- **RFC 3550** - RTP: A Transport Protocol for Real-Time Applications
 
 ## Support
 
@@ -266,4 +273,4 @@ This is an experimental project under active development. Contributions are welc
 
 ---
 
-*Version 1.0.0 - Build #8 (Beta)*
+*Version 1.0.0 - Build #9 (Alpha - Not Functional)*
