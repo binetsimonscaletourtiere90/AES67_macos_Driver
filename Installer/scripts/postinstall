@@ -4,10 +4,11 @@
 # AES67 macOS Driver Installer - Post-installation script
 # This script runs after the package is installed
 #
+# Note: The installer has already copied the driver to its destination.
+# This script sets permissions and restarts Core Audio.
+#
 
-set -e  # Exit on any error
-
-# Logging
+# Don't exit on error initially - we want to log errors properly
 LOG_FILE="/tmp/aes67driver_install.log"
 echo "=== AES67 Driver Post-Installation Script ===" | tee -a "$LOG_FILE"
 echo "Date: $(date)" | tee -a "$LOG_FILE"
@@ -16,44 +17,31 @@ echo "Date: $(date)" | tee -a "$LOG_FILE"
 DRIVER_NAME="AES67Driver.driver"
 INSTALL_DIR="/Library/Audio/Plug-Ins/HAL"
 DRIVER_PATH="${INSTALL_DIR}/${DRIVER_NAME}"
-SOURCE_DRIVER="$2/${DRIVER_NAME}"  # $2 is the package path
 
-echo "Installing AES67 Audio Driver..." | tee -a "$LOG_FILE"
+echo "Configuring AES67 Audio Driver..." | tee -a "$LOG_FILE"
 
-# Create HAL plug-ins directory if it doesn't exist
-if [ ! -d "$INSTALL_DIR" ]; then
-    echo "Creating HAL plug-ins directory: $INSTALL_DIR" | tee -a "$LOG_FILE"
-    mkdir -p "$INSTALL_DIR"
-fi
-
-# Remove old version if it exists
-if [ -d "$DRIVER_PATH" ]; then
-    echo "Removing previous version..." | tee -a "$LOG_FILE"
-    rm -rf "$DRIVER_PATH"
-fi
-
-# Copy driver bundle to system location
-echo "Copying driver bundle to $INSTALL_DIR..." | tee -a "$LOG_FILE"
-cp -R "$SOURCE_DRIVER" "$INSTALL_DIR/" || {
-    echo "ERROR: Failed to copy driver bundle" | tee -a "$LOG_FILE"
+# Verify the installer copied the driver successfully
+if [ ! -d "$DRIVER_PATH" ]; then
+    echo "ERROR: Driver bundle not found at: $DRIVER_PATH" | tee -a "$LOG_FILE"
+    echo "The installer may have failed to copy the driver." | tee -a "$LOG_FILE"
     exit 1
-}
+fi
+
+echo "✓ Driver bundle found at: $DRIVER_PATH" | tee -a "$LOG_FILE"
 
 # Set ownership to root:wheel
 echo "Setting ownership to root:wheel..." | tee -a "$LOG_FILE"
-chown -R root:wheel "$DRIVER_PATH"
+chown -R root:wheel "$DRIVER_PATH" || {
+    echo "WARNING: Failed to set ownership" | tee -a "$LOG_FILE"
+}
 
 # Set permissions: readable and executable by all, writable only by root
 echo "Setting permissions..." | tee -a "$LOG_FILE"
-chmod -R 755 "$DRIVER_PATH"
+chmod -R 755 "$DRIVER_PATH" || {
+    echo "WARNING: Failed to set permissions" | tee -a "$LOG_FILE"
+}
 
-# Verify installation
-if [ -d "$DRIVER_PATH" ]; then
-    echo "✓ Driver installed successfully at: $DRIVER_PATH" | tee -a "$LOG_FILE"
-else
-    echo "ERROR: Driver installation failed - bundle not found" | tee -a "$LOG_FILE"
-    exit 1
-fi
+echo "✓ Driver configured successfully" | tee -a "$LOG_FILE"
 
 # Restart Core Audio to load the new driver
 echo "Restarting Core Audio service..." | tee -a "$LOG_FILE"

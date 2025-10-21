@@ -1,6 +1,6 @@
 //
 // ContentView.swift
-// AES67 Manager - Build #7
+// AES67 Manager - Build #18
 // Main window interface
 //
 
@@ -10,6 +10,7 @@ struct ContentView: View {
     @EnvironmentObject var driverManager: DriverManager
     @State private var selectedStream: StreamInfo?
     @State private var showChannelMapping = false
+    @State private var showChannelDiagnostic = false
 
     var body: some View {
         NavigationSplitView {
@@ -40,7 +41,12 @@ struct ContentView: View {
                 Button(action: { showChannelMapping = true }) {
                     Label("Channel Mapping", systemImage: "grid")
                 }
-                .help("Open 128-channel mapping visualizer")
+                .help("Configure stream channel mappings")
+
+                Button(action: { showChannelDiagnostic = true }) {
+                    Label("Diagnostic", systemImage: "chart.bar.doc.horizontal")
+                }
+                .help("View 128-channel device map and diagnostics")
 
                 Button(action: { driverManager.refreshStatus() }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
@@ -66,6 +72,10 @@ struct ContentView: View {
         .sheet(isPresented: $showChannelMapping) {
             ChannelMappingView(driverManager: driverManager)
                 .frame(minWidth: 1200, minHeight: 800)
+        }
+        .sheet(isPresented: $showChannelDiagnostic) {
+            ChannelMapDiagnosticView()
+                .environmentObject(driverManager)
         }
     }
 }

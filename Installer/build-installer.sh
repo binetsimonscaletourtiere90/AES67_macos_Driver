@@ -30,6 +30,10 @@ PACKAGE_NAME="AES67Driver-${PACKAGE_VERSION}-arm64.pkg"
 DRIVER_NAME="AES67Driver.driver"
 DRIVER_BUILD_PATH="$BUILD_DIR/$DRIVER_NAME"
 
+# Manager app info
+MANAGER_APP_NAME="AES67Manager.app"
+MANAGER_APP_PATH="$PROJECT_ROOT/ManagerApp/$MANAGER_APP_NAME"
+
 echo "Configuration:"
 echo "  Project root: $PROJECT_ROOT"
 echo "  Build dir: $BUILD_DIR"
@@ -53,6 +57,19 @@ fi
 
 echo "✓ Found driver at: $DRIVER_BUILD_PATH"
 
+# Check if Manager app has been built
+if [ ! -d "$MANAGER_APP_PATH" ]; then
+    echo "ERROR: Manager app not found at: $MANAGER_APP_PATH"
+    echo ""
+    echo "Please build the Manager app first:"
+    echo "  cd $PROJECT_ROOT/ManagerApp"
+    echo "  ./build.sh"
+    echo ""
+    exit 1
+fi
+
+echo "✓ Found Manager app at: $MANAGER_APP_PATH"
+
 # Clean and create output directories
 echo "Preparing directories..."
 rm -rf "$OUTPUT_DIR" "$PAYLOAD_DIR"
@@ -62,19 +79,33 @@ mkdir -p "$PAYLOAD_DIR"
 # Create payload directory structure
 # The payload should mirror the final installation location
 PAYLOAD_INSTALL_DIR="$PAYLOAD_DIR/Library/Audio/Plug-Ins/HAL"
+PAYLOAD_APPS_DIR="$PAYLOAD_DIR/Applications"
 mkdir -p "$PAYLOAD_INSTALL_DIR"
+mkdir -p "$PAYLOAD_APPS_DIR"
 
 # Copy driver to payload
 echo "Copying driver to payload..."
 cp -R "$DRIVER_BUILD_PATH" "$PAYLOAD_INSTALL_DIR/"
 
-# Verify payload
+# Verify driver payload
 if [ ! -d "$PAYLOAD_INSTALL_DIR/$DRIVER_NAME" ]; then
     echo "ERROR: Failed to copy driver to payload"
     exit 1
 fi
 
 echo "✓ Driver copied to payload"
+
+# Copy Manager app to payload
+echo "Copying Manager app to payload..."
+cp -R "$MANAGER_APP_PATH" "$PAYLOAD_APPS_DIR/"
+
+# Verify Manager app payload
+if [ ! -d "$PAYLOAD_APPS_DIR/$MANAGER_APP_NAME" ]; then
+    echo "ERROR: Failed to copy Manager app to payload"
+    exit 1
+fi
+
+echo "✓ Manager app copied to payload"
 
 # Check scripts exist and are executable
 echo "Checking installer scripts..."

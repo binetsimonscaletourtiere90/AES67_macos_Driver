@@ -21,8 +21,11 @@ swiftc -o AES67Manager \
   Views/StreamDetailView.swift \
   Views/AddStreamView.swift \
   Views/SettingsView.swift \
+  Views/ChannelMappingView.swift \
+  Views/ChannelMapDiagnosticView.swift \
   Models/StreamInfo.swift \
-  Models/DriverManager.swift
+  Models/DriverManager.swift \
+  Models/MenuBarManager.swift
 
 # Create app bundle structure
 echo "Creating app bundle..."
