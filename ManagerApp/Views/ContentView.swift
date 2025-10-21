@@ -9,6 +9,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var driverManager: DriverManager
     @State private var selectedStream: StreamInfo?
+    @State private var showChannelMapping = false
 
     var body: some View {
         NavigationSplitView {
@@ -36,6 +37,11 @@ struct ContentView: View {
 
                 Divider()
 
+                Button(action: { showChannelMapping = true }) {
+                    Label("Channel Mapping", systemImage: "grid")
+                }
+                .help("Open 128-channel mapping visualizer")
+
                 Button(action: { driverManager.refreshStatus() }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -56,6 +62,10 @@ struct ContentView: View {
         .sheet(isPresented: $driverManager.showAddStreamSheet) {
             AddStreamView()
                 .environmentObject(driverManager)
+        }
+        .sheet(isPresented: $showChannelMapping) {
+            ChannelMappingView(driverManager: driverManager)
+                .frame(minWidth: 1200, minHeight: 800)
         }
     }
 }

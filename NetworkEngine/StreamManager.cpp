@@ -5,6 +5,7 @@
 //
 
 #include "StreamManager.h"
+#include "../Driver/DebugLog.h"
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -15,6 +16,7 @@ namespace AES67 {
 StreamManager::StreamManager(DeviceChannelBuffers& inputChannels, DeviceChannelBuffers& outputChannels)
     : inputChannels_(inputChannels)
     , outputChannels_(outputChannels)
+    , configManager_(std::make_unique<StreamConfigManager>())
 {
 }
 
@@ -127,6 +129,9 @@ StreamID StreamManager::addStream(const SDPSession& sdp, const ChannelMapping& m
     // Notify callback
     notifyStreamAdded(streams_[id].info);
 
+    // Auto-save configuration
+    autoSaveIfEnabled();
+
     return id;
 }
 
@@ -178,6 +183,9 @@ bool StreamManager::removeStream(const StreamID& id) {
 
     // Notify callback
     notifyStreamRemoved(info);
+
+    // Auto-save configuration
+    autoSaveIfEnabled();
 
     return true;
 }
@@ -284,6 +292,9 @@ StreamID StreamManager::createTxStream(
     // Notify callback
     notifyStreamAdded(streams_[id].info);
 
+    // Auto-save configuration
+    autoSaveIfEnabled();
+
     return id;
 }
 
@@ -346,6 +357,9 @@ bool StreamManager::updateMapping(const StreamID& id, const ChannelMapping& newM
 
     if (updated) {
         notifyStreamStatusChanged(it->second.info);
+
+        // Auto-save configuration
+        autoSaveIfEnabled();
     }
 
     return updated;
@@ -556,6 +570,180 @@ void StreamManager::notifyStreamRemoved(const StreamInfo& info) {
 void StreamManager::notifyStreamStatusChanged(const StreamInfo& info) {
     if (streamStatusCallback_) {
         streamStatusCallback_(info);
+    }
+}
+
+//
+// Configuration Persistence
+//
+
+bool StreamManager::loadSavedStreams() {
+    std::lock_guard<std::mutex> lock(streamsMutex_);
+
+    // Load configurations from disk
+    auto configs = configManager_->loadConfig();
+    if (!configs) {
+        AES67_LOG("StreamManager: No saved stream configurations found");
+        return false;
+    }
+
+    AES67_LOGF("StreamManager: Loading %zu saved stream configurations", configs->size());
+
+    // Add each saved stream
+    int loadedCount = 0;
+    int failedCount = 0;
+
+    for (const auto& config : *configs) {
+        // Skip disabled streams
+        if (!config.enabled) {
+            AES67_LOGF("StreamManager: Skipping disabled stream: %s", config.sdp.sessionName.c_str());
+            continue;
+        }
+
+        // Validate config
+        if (!config.isValid()) {
+            AES67_LOGF("StreamManager: Invalid stream config: %s", config.sdp.sessionName.c_str());
+            failedCount++;
+            continue;
+        }
+
+        // Check if stream can be added (validate sample rate, channels, etc.)
+        std::string error;
+        if (!canAddStream(config.sdp, &error)) {
+            AES67_LOGF("StreamManager: Cannot add stream '%s': %s",
+                      config.sdp.sessionName.c_str(), error.c_str());
+            failedCount++;
+            continue;
+        }
+
+        // Generate new StreamID (use the one from saved mapping)
+        StreamID id = config.mapping.streamID;
+
+        // Check if stream already exists
+        if (streams_.find(id) != streams_.end()) {
+            AES67_LOGF("StreamManager: Stream already exists: %s", config.sdp.sessionName.c_str());
+            failedCount++;
+            continue;
+        }
+
+        // Add mapping to mapper
+        if (!mapper_.addMapping(config.mapping)) {
+            AES67_LOGF("StreamManager: Failed to add mapping for stream: %s",
+                      config.sdp.sessionName.c_str());
+            failedCount++;
+            continue;
+        }
+
+        // Create managed stream
+        ManagedStream managed;
+        managed.sdp = config.sdp;
+        managed.mapping = config.mapping;
+        managed.isTransmit = (config.sdp.direction == "sendonly" || config.sdp.direction == "sendrecv");
+
+        // Create RTP receiver or transmitter
+        if (managed.isTransmit) {
+            managed.transmitter = createTransmitter(config.sdp, config.mapping);
+            if (!managed.transmitter || !managed.transmitter->start()) {
+                mapper_.removeMapping(id);
+                failedCount++;
+                continue;
+            }
+        } else {
+            managed.receiver = createReceiver(config.sdp, config.mapping);
+            if (!managed.receiver || !managed.receiver->start()) {
+                mapper_.removeMapping(id);
+                failedCount++;
+                continue;
+            }
+        }
+
+        // Build stream info (same as in addStream)
+        managed.info.id = id;
+        managed.info.name = config.sdp.sessionName;
+        managed.info.description = config.sdp.sessionInfo;
+        managed.info.source.ip = config.sdp.sourceAddress;
+        managed.info.source.port = config.sdp.port;
+        managed.info.multicast.ip = config.sdp.connectionAddress;
+        managed.info.multicast.port = config.sdp.port;
+        managed.info.multicast.ttl = config.sdp.ttl;
+
+        if (config.sdp.encoding == "L16") {
+            managed.info.encoding = AudioEncoding::L16;
+        } else if (config.sdp.encoding == "L24") {
+            managed.info.encoding = AudioEncoding::L24;
+        } else {
+            managed.info.encoding = AudioEncoding::Unknown;
+        }
+
+        managed.info.sampleRate = config.sdp.sampleRate;
+        managed.info.numChannels = config.sdp.numChannels;
+        managed.info.payloadType = config.sdp.payloadType;
+        managed.info.ptime = config.sdp.ptime;
+        managed.info.framecount = config.sdp.framecount;
+        managed.info.ptp.domain = config.sdp.ptpDomain;
+        managed.info.isActive = true;
+        managed.info.isConnected = false;
+        managed.info.startTime = std::chrono::steady_clock::now();
+
+        // Store stream
+        streams_[id] = std::move(managed);
+
+        // Notify callback
+        notifyStreamAdded(streams_[id].info);
+
+        loadedCount++;
+        AES67_LOGF("StreamManager: Loaded stream: %s (%s)",
+                  config.sdp.sessionName.c_str(),
+                  id.toString().c_str());
+    }
+
+    AES67_LOGF("StreamManager: Loaded %d streams successfully, %d failed",
+              loadedCount, failedCount);
+
+    return loadedCount > 0;
+}
+
+bool StreamManager::saveAllStreams() {
+    std::lock_guard<std::mutex> lock(streamsMutex_);
+    return saveAllStreamsInternal();
+}
+
+bool StreamManager::saveAllStreamsInternal() {
+    // NOTE: Caller must hold streamsMutex_ lock
+
+    std::vector<PersistedStreamConfig> configs;
+    configs.reserve(streams_.size());
+
+    // Convert all streams to persisted configs
+    for (const auto& pair : streams_) {
+        const auto& managed = pair.second;
+
+        PersistedStreamConfig config = StreamConfigManager::createConfig(
+            managed.sdp,
+            managed.mapping,
+            managed.info.description
+        );
+
+        configs.push_back(config);
+    }
+
+    // Save to disk
+    bool success = configManager_->saveConfig(configs);
+
+    if (success) {
+        AES67_LOGF("StreamManager: Saved %zu stream configurations to disk", configs.size());
+    } else {
+        AES67_LOG("StreamManager: Failed to save stream configurations");
+    }
+
+    return success;
+}
+
+void StreamManager::autoSaveIfEnabled() {
+    // NOTE: We're already holding streamsMutex_ when this is called
+    // from addStream/removeStream/updateMapping, so use the internal version
+    if (autoSaveEnabled_) {
+        saveAllStreamsInternal();
     }
 }
 

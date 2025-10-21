@@ -10,6 +10,7 @@
 #include "../Shared/RingBuffer.hpp"
 #include "../Driver/SDPParser.h"
 #include "StreamChannelMapper.h"
+#include "StreamConfig.h"
 #include "RTP/RTPReceiver.h"
 #include "RTP/RTPTransmitter.h"
 #include "PTP/PTPClock.h"
@@ -126,6 +127,22 @@ public:
     size_t getAvailableChannelCount() const;
 
     //
+    // Configuration Persistence
+    //
+
+    // Load saved stream configurations from disk
+    bool loadSavedStreams();
+
+    // Save all current streams to disk
+    bool saveAllStreams();
+
+    // Enable/disable auto-save (automatically save after add/remove/update)
+    void setAutoSave(bool enabled) { autoSaveEnabled_ = enabled; }
+
+    // Get auto-save state
+    bool isAutoSaveEnabled() const { return autoSaveEnabled_; }
+
+    //
     // Callbacks
     //
 
@@ -176,12 +193,20 @@ private:
     void notifyStreamRemoved(const StreamInfo& info);
     void notifyStreamStatusChanged(const StreamInfo& info);
 
+    // Configuration helpers
+    void autoSaveIfEnabled();
+    bool saveAllStreamsInternal();  // Internal version without locking
+
     // Data members
     DeviceChannelBuffers& inputChannels_;   // RTP receivers write here (Network → Core Audio)
     DeviceChannelBuffers& outputChannels_;  // RTP transmitters read here (Core Audio → Network)
     StreamChannelMapper mapper_;
     std::map<StreamID, ManagedStream> streams_;
     mutable std::mutex streamsMutex_;
+
+    // Configuration management
+    std::unique_ptr<StreamConfigManager> configManager_;
+    bool autoSaveEnabled_{true};
 
     // Device state
     std::atomic<double> currentDeviceSampleRate_{48000.0};

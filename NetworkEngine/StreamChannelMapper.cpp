@@ -16,7 +16,7 @@ namespace AES67 {
 // ============================================================================
 
 bool ChannelMapping::isValid() const {
-    return !getValidationError().empty();
+    return getValidationError().empty();  // Empty error = valid
 }
 
 std::string ChannelMapping::getValidationError() const {

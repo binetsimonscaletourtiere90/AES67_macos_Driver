@@ -110,14 +110,14 @@ set(DRIVER_SOURCES
 set(NETWORK_SOURCES
     NetworkEngine/StreamChannelMapper.cpp
     NetworkEngine/StreamManager.cpp
+    NetworkEngine/StreamConfig.cpp
     NetworkEngine/RTP/SimpleRTP.cpp
     NetworkEngine/RTP/RTPReceiver.cpp
     NetworkEngine/RTP/RTPTransmitter.cpp
     NetworkEngine/PTP/PTPClock.cpp
     NetworkEngine/DoPDecoder.cpp
-    # TODO: Add when implemented
-    # NetworkEngine/Discovery/SAPListener.cpp
-    # NetworkEngine/Discovery/RTSPClient.cpp
+    NetworkEngine/Discovery/SAPListener.cpp
+    NetworkEngine/Discovery/RTSPClient.cpp
 )
 
 # Combine all C++ sources

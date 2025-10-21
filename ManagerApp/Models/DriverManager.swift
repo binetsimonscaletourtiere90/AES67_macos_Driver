@@ -108,6 +108,29 @@ class DriverManager: ObservableObject {
         // For now, we just refresh the driver status
     }
 
+    // MARK: - Channel Mapping
+
+    func assignMapping(streamID: UUID, deviceChannelStart: UInt16, deviceChannelCount: UInt16) {
+        guard let index = streams.firstIndex(where: { $0.id == streamID }) else { return }
+
+        let mapping = ChannelMappingInfo(
+            streamID: streamID,
+            streamName: streams[index].name,
+            streamChannelCount: streams[index].numChannels,
+            deviceChannelStart: deviceChannelStart,
+            deviceChannelCount: deviceChannelCount
+        )
+
+        streams[index].mapping = mapping
+        saveConfiguration()
+    }
+
+    func clearMapping(streamID: UUID) {
+        guard let index = streams.firstIndex(where: { $0.id == streamID }) else { return }
+        streams[index].mapping = nil
+        saveConfiguration()
+    }
+
     // MARK: - SDP Import/Export
 
     func importSDPFile() {
